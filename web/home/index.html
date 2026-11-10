@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>W204 Accueil — séquence de démarrage</title>
+<style>
+  :root { --bg:#0b0d10; --fg:#e7eaee; --mute:#8a929d; --line:#2a3039; --panel:rgba(18,21,26,.82); --accent:#5ac8fa; --on:#34c759; --amber:#ffa31a; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; overflow:hidden; }
+  :root[data-theme="light"] { --bg:#eef0f3; --fg:#15181c; --mute:#5f6670; --line:#c9ced5; --panel:rgba(255,255,255,.82); }
+  :root[data-theme="light"] button { background:#f7f8fa; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #panel { position:fixed; left:16px; bottom:16px; background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:12px; display:flex; flex-direction:column; gap:10px; width:min(360px,calc(100% - 32px)); backdrop-filter:blur(6px); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  button { font:600 14px/1 inherit; font-family:inherit; color:var(--fg); background:#1a1e24; border:1px solid var(--line); border-radius:8px; padding:11px 14px; cursor:pointer; flex:1; }
+  button:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
+  button[aria-pressed="true"] { border-color:var(--accent); background:rgba(90,200,250,.14); }
+  .chip { font:600 12px/1 ui-monospace,Menlo,monospace; letter-spacing:.06em; text-transform:uppercase; padding:6px 9px; border-radius:999px; border:1px solid var(--line); color:var(--mute); }
+  .chip.on { color:var(--on); border-color:var(--on); }
+  label { color:var(--mute); font-size:12px; }
+  input[type=range] { flex:1; accent-color:var(--accent); }
+  .k { font:500 12px ui-monospace,Menlo,monospace; color:var(--mute); }
+  /* top fade: hides where the lines come from + room for tell-tales */
+  #fade { position:fixed; left:0; right:0; top:0; height:34vh; pointer-events:none; opacity:0;
+          background:linear-gradient(to bottom, var(--fadebg,#0b0d10) 0%, var(--fadebg,#0b0d10) 30%, transparent 100%); }
+  #tells { position:fixed; left:50%; top:max(14px, env(safe-area-inset-top,0px)); transform:translateX(-50%); display:flex; gap:18px; align-items:center; pointer-events:none; }
+  #tells svg { width:34px; height:34px; opacity:0; transition:opacity .12s; }
+  #tells svg.on { opacity:1; }
+  #speedo { position:fixed; left:max(28px, env(safe-area-inset-left,0px)); top:max(18px, env(safe-area-inset-top,0px)); text-align:left; font:300 96px/0.9 system-ui,sans-serif; letter-spacing:-.03em; font-variant-numeric:tabular-nums; opacity:0; transition:opacity .6s; }
+  #speedo small { display:block; margin-top:6px; font:500 14px ui-monospace,Menlo,monospace; color:var(--mute); letter-spacing:.12em; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="fade"></div>
+<div id="tells" aria-label="Témoins">
+  <svg id="tl-signal_L" viewBox="0 0 24 24" aria-label="Clignotant gauche"><path d="M10 5 3 12l7 7v-4h10V9H10z" fill="#34c759"/></svg>
+  <svg id="tl-lowbeam" viewBox="0 0 24 24" aria-label="Feux de croisement"><path d="M13 6c4 0 7 2.7 7 6s-3 6-7 6c-1 0-1.6-.3-1.6-.3V6.3S12 6 13 6z" fill="#34c759"/><path d="M9 8 3 9.5M9 12l-6 1.5M9 16l-6 1.5" stroke="#34c759" stroke-width="2" stroke-linecap="round"/></svg>
+  <svg id="tl-highbeam" viewBox="0 0 24 24" aria-label="Feux de route"><path d="M13 6c4 0 7 2.7 7 6s-3 6-7 6c-1 0-1.6-.3-1.6-.3V6.3S12 6 13 6z" fill="#0a84ff"/><path d="M9 8H3M9 12H3M9 16H3" stroke="#0a84ff" stroke-width="2" stroke-linecap="round"/></svg>
+  <svg id="tl-fog" viewBox="0 0 24 24" aria-label="Antibrouillards"><path d="M13 6c4 0 7 2.7 7 6s-3 6-7 6c-1 0-1.6-.3-1.6-.3V6.3S12 6 13 6z" fill="#34c759"/><path d="M9 8 3 9.5M9 12l-6 1.5M9 16l-6 1.5" stroke="#34c759" stroke-width="2" stroke-linecap="round"/><path d="M5 5.5c1 1.5 1 4 0 5.5M5 13c1 1.5 1 4 0 5.5" stroke="#34c759" stroke-width="1.6" fill="none"/></svg>
+  <svg id="tl-hazard" viewBox="0 0 24 24" aria-label="Warning"><path d="M12 3 22 20H2z" fill="none" stroke="#ff3b30" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 9.5 16.3 17H7.7z" fill="none" stroke="#ff3b30" stroke-width="1.8" stroke-linejoin="round"/></svg>
+  <svg id="tl-signal_R" viewBox="0 0 24 24" aria-label="Clignotant droit"><path d="M14 5l7 7-7 7v-4H4V9h10z" fill="#34c759"/></svg>
+</div>
+<div id="speedo"><span id="kmh">0</span><small>KM/H</small></div>
+
+<div id="panel">
+  <div class="row"><span class="chip" id="st-state">Contact coupé</span><span class="k" id="st-sig">ACC 0 · RPM 0</span></div>
+  <div class="row">
+    <button id="b-acc" aria-pressed="false">Contact</button>
+    <button id="b-start">Démarrer</button>
+    <button id="b-off">Couper</button>
+  </div>
+  <div class="row"><label for="spd">Vitesse</label><input id="spd" type="range" min="0" max="130" step="1" value="0"><span class="k" id="spd-v">0</span></div>
+  <div class="row"><button id="b-high" aria-pressed="false">Plein phare</button><button id="b-haz" aria-pressed="false">Warning</button></div>
+  <div class="row"><button id="b-paint">Blanc</button><button id="b-theme">Thème : auto</button><button id="b-auto">Démo auto</button></div>
+</div>
+
+<script type="importmap">
+{ "imports": { "three": "../probe/vendor/three.module.js", "three/addons/": "../probe/vendor/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+/* ------------------------------------------------------------------ renderer / scene */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const scene = new THREE.Scene();
+const BG = new THREE.Color(0x0b0d10);
+scene.background = BG;
+scene.fog = new THREE.Fog(BG, 14, 70);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const key = new THREE.DirectionalLight(0xffffff, 1.4); key.position.set(4, 7, 3); scene.add(key);
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 200);
+
+/* ------------------------------------------------------------------ helpers */
+function canvasTex(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; return t; }
+const ease = { inOut: t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2, out: t => 1 - Math.pow(1 - t, 3), inOutQ: t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2 };
+const lerp = THREE.MathUtils.lerp;
+
+/* ------------------------------------------------------------------ turntable (plateau) */
+const PLATE_H = 0.09;
+const plateTop = canvasTex(1024, 1024, (g, w) => {
+  const r = w / 2; g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, w);
+  const grd = g.createRadialGradient(r, r, 0, r, r, r); grd.addColorStop(0, '#ffffff'); grd.addColorStop(1, '#c9c9c9');
+  g.fillStyle = grd; g.beginPath(); g.arc(r, r, r, 0, Math.PI * 2); g.fill();
+  g.strokeStyle = 'rgba(0,0,0,.10)'; g.lineWidth = 2;
+  for (let i = 0; i < 72; i++) { const a = i / 72 * Math.PI * 2; g.beginPath(); g.moveTo(r + Math.cos(a) * r * .55, r + Math.sin(a) * r * .55); g.lineTo(r + Math.cos(a) * r * .97, r + Math.sin(a) * r * .97); g.stroke(); }
+  for (const k of [.55, .8, .97]) { g.beginPath(); g.arc(r, r, r * k, 0, Math.PI * 2); g.stroke(); }
+});
+const plateMat = new THREE.MeshStandardMaterial({ color: 0xffffff, map: plateTop, metalness: .55, roughness: .38, transparent: true });
+const plateSide = new THREE.MeshStandardMaterial({ color: 0x0f1115, metalness: .7, roughness: .3, transparent: true });
+const plate = new THREE.Group();
+const plateMesh = new THREE.Mesh(new THREE.CylinderGeometry(2.75, 2.85, PLATE_H, 128, 1), [plateSide, plateMat, plateSide]);
+plateMesh.position.y = PLATE_H / 2; plate.add(plateMesh);
+const ringMat = new THREE.MeshBasicMaterial({ color: 0x5ac8fa, transparent: true, opacity: .0 });
+const ring = new THREE.Mesh(new THREE.TorusGeometry(2.8, 0.012, 8, 160), ringMat); ring.rotation.x = Math.PI / 2; ring.position.y = PLATE_H * .55; plate.add(ring);
+const floorGlow = new THREE.Mesh(new THREE.CircleGeometry(4.5, 64), new THREE.MeshBasicMaterial({ map: canvasTex(256, 256, (g, w) => { const r = w / 2, grd = g.createRadialGradient(r, r, r * .55, r, r, r); grd.addColorStop(0, 'rgba(90,200,250,.10)'); grd.addColorStop(1, 'rgba(90,200,250,0)'); g.fillStyle = grd; g.fillRect(0, 0, w, w); }), transparent: true, depthWrite: false }));
+floorGlow.rotation.x = -Math.PI / 2; floorGlow.position.y = 0.001; plate.add(floorGlow);
+scene.add(plate);
+
+/* ------------------------------------------------------------------ road: just scrolling lines (stylised, seen from above) */
+const ROAD_LEN = 160, TILE = 12, ROAD_W = 12;         // tile = 12 m (3 m dash + 9 m gap); plane 12 m wide
+const roadTex = canvasTex(1024, 512, (g, w, h) => {
+  const px = w / ROAD_W, lw = Math.max(2, 0.15 * px);   // 15 cm lines
+  g.clearRect(0, 0, w, h); g.fillStyle = '#ffffff';
+  const at = x => w / 2 + x * px - lw / 2;              // x in metres from the plane centre
+  // centre lane of a motorway: only the dashed dividers either side of the car
+  g.fillRect(at(-1.85), 0, lw, h * 0.375); g.fillRect(at(1.85), 0, lw, h * 0.375); // lane dividers (4.5 m dash / 12 m)
+});
+roadTex.wrapS = THREE.ClampToEdgeWrapping; roadTex.wrapT = THREE.RepeatWrapping; roadTex.repeat.set(1, ROAD_LEN / TILE);
+roadTex.anisotropy = 8;
+const roadMat = new THREE.MeshBasicMaterial({ map: roadTex, color: 0x5d6670, transparent: true, opacity: 0, depthWrite: false, toneMapped: false });
+const road = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, ROAD_LEN), roadMat);
+road.rotation.x = -Math.PI / 2; road.position.set(0, 0.0005, -ROAD_LEN / 2 + 14);       // car in the centre lane
+scene.add(road);
+
+/* ------------------------------------------------------------------ day / night theme
+   auto = follows the system (prefers-color-scheme; on the unit: its day/night mode or the lighting signal) */
+const THEMES = {
+  night: { bg: 0x0b0d10, line: 0x5d6670, plate: 0x262a31, side: 0x101215, glow: .10, shadow: .75, key: 1.4, ui: 'dark' },
+  day:   { bg: 0xeef0f3, line: 0x8e959e, plate: 0xe2e5e9, side: 0xc4c9cf, glow: .0,  shadow: .30, key: 2.2, ui: 'light' },
+};
+const mq = matchMedia('(prefers-color-scheme: dark)');
+let themeMode = 'auto';                                  // auto | day | night
+const themeTarget = () => themeMode === 'auto' ? (mq.matches ? 0 : 1) : themeMode === 'day' ? 1 : 0;
+let themeK = themeTarget();                              // 0 = night, 1 = day (animated)
+const cA = new THREE.Color(), cB = new THREE.Color();
+const mix = (a, b, k, out) => out.copy(cA.setHex(a)).lerp(cB.setHex(b), k);
+function applyTheme(k) {
+  const N = THEMES.night, D = THEMES.day;
+  mix(N.bg, D.bg, k, scene.background); scene.fog.color.copy(scene.background);
+  mix(N.line, D.line, k, roadMat.color);
+  mix(N.plate, D.plate, k, plateMat.color); mix(N.side, D.side, k, plateSide.color);
+  floorGlow.material.color.setScalar(1); floorGlow.visible = k < .99;
+  shadow.material.opacity = lerp(N.shadow, D.shadow, k);
+  key.intensity = lerp(N.key, D.key, k);
+  document.documentElement.dataset.theme = k > .5 ? 'light' : 'dark';
+}
+
+/* ------------------------------------------------------------------ car rig */
+const rig = new THREE.Group(); scene.add(rig);                    // yaw + height of the car
+const shadowAlpha = new THREE.CanvasTexture((() => { const c = document.createElement('canvas'); c.width = 128; c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, 128, 256); g.filter = 'blur(14px)'; g.fillStyle = '#fff'; g.beginPath(); g.ellipse(64, 128, 38, 98, 0, 0, Math.PI * 2); g.fill(); return c; })());
+const shadow = new THREE.Mesh(new THREE.PlaneGeometry(2.6, 5.6), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: shadowAlpha, transparent: true, depthWrite: false, toneMapped: false }));
+shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.012; shadow.renderOrder = 1;
+shadow.material.polygonOffset = true; shadow.material.polygonOffsetFactor = -4; shadow.material.polygonOffsetUnits = -4;   // no z-fighting with the plate
+rig.add(shadow);
+let car = null; const cars = {};
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+async function loadCar(paint) {
+  if (!cars[paint]) {
+    const g = await loader.loadAsync(`../probe/w204_facelift_${paint}.glb`);
+    const info = { root: g.scene, wheels: [], lamps: [] };
+    g.scene.traverse(o => { if (o.userData?.type === 'wheel') info.wheels.push({ o, q0: o.quaternion.clone(), a: 0 }); if (o.isMesh && o.material.userData.light) info.lamps.push(o.material); });
+    cars[paint] = info;
+  }
+  if (car) rig.remove(car.root);
+  car = cars[paint]; rig.add(car.root);
+  // turn around the car's own centre (footprint), not the file origin
+  if (!car.centred) { const b = new THREE.Box3().setFromObject(car.root); car.root.position.x -= (b.min.x + b.max.x) / 2; car.root.position.z -= (b.min.z + b.max.z) / 2; car.base = car.root.position.clone(); car.centred = true; }
+}
+
+/* ------------------------------------------------------------------ cameras (poses) */
+const POSE = {
+  showroom: { pos: new THREE.Vector3(-4.1, 1.30, 5.3), tgt: new THREE.Vector3(0, 0.55, 0) },         // front ¾, nose to the RIGHT of the screen
+  drive:    { pos: new THREE.Vector3(0.0, 9.0, 9.4), tgt: new THREE.Vector3(0.0, 0.0, -1.8) },       // behind and above (≈39° plunging view), nose up the screen
+};
+const cam = { pos: POSE.showroom.pos.clone(), tgt: POSE.showroom.tgt.clone() };
+
+/* ------------------------------------------------------------------ state machine
+   off       : contact coupé  — showroom, lights off
+   acc       : contact mis    — DRL on, 2 turntable turns, back to front ¾
+   starting  : moteur démarre — shake, low beam, half-turn, plate fades, road in, camera to chase
+   drive     : prêt à rouler  — road scrolls with speed
+   stopping  : contact coupé depuis drive — reverse transition back to showroom
+   Inputs: acc (EZS/ACC: décodeur ou CAN-B 🟡) and rpm (PID 010C ✅, "démarré" = rpm > 400).              */
+const S = { state: 'off', acc: false, rpm: 0, speed: 0, targetSpeed: 0, yaw: 0, lift: PLATE_H, road: 0, camK: 0, lights: { running: 0, lowbeam: 0, highbeam: 0, lowhighbeam: 0, fog: 0, brakelights: 0, signal_L: 0, signal_R: 0 }, shake: 0, queue: null, flash: 0, hazard: false, high: false };
+let anim = null;    // { t, dur, update(k), done() }
+function play(dur, update, done) { anim = { t: 0, dur, update, done }; }
+
+function setState(s) {
+  S.state = s;
+  const labels = { off: 'Contact coupé', acc: 'Contact mis', starting: 'Démarrage', drive: 'Prêt à rouler', stopping: 'Arrêt' };
+  const el = document.getElementById('st-state'); el.textContent = labels[s]; el.classList.toggle('on', s === 'drive' || s === 'starting');
+  document.getElementById('speedo').style.opacity = s === 'drive' ? 1 : 0;
+}
+
+function toAcc() {
+  if (S.state !== 'off') return;
+  setState('acc');
+  // the car "wakes up": one hazard flash, then headlights on, then one turn on the turntable
+  const y0 = S.yaw, D = 3.9;
+  play(D, k => {
+      const tt = k * D;
+      S.flash = (tt > 0.05 && tt < 0.55) ? 1 : 0;
+      if (tt > 0.75) { S.lights.running = 1; S.lights.lowbeam = 1; S.lights.lowhighbeam = 1; }
+      const kk = THREE.MathUtils.clamp((tt - 0.8) / (D - 0.8), 0, 1);
+      S.yaw = y0 + ease.inOut(kk) * Math.PI * 2;
+      ringMat.opacity = tt < 0.8 ? tt / 0.8 * .6 : Math.sin(kk * Math.PI) * .6 + .25;
+    }, () => { S.yaw = y0 + Math.PI * 2; S.flash = 0; if (S.queue) { const f = S.queue; S.queue = null; f(); } });
+}
+function toStart() {
+  if (S.state === 'off') { S.queue = toStart; toAcc(); return; }
+  if (S.state === 'acc' && anim) { S.queue = toStart; return; }        // let the 2 turns finish
+  if (S.state !== 'acc') return;
+  setState('starting'); S.rpm = 850; S.shake = 1; S.lights.lowbeam = 1; S.lights.lowhighbeam = 1;
+  const y0 = S.yaw, y1 = Math.ceil((y0 - 0.01) / (Math.PI * 2)) * Math.PI * 2 + Math.PI;   // finish facing away (-Z)
+  play(0.45, () => {}, () => play(3.0, k => {
+      const e = ease.inOut(k);
+      S.yaw = lerp(y0, y1, e);
+      S.lift = lerp(PLATE_H, 0, ease.inOutQ(Math.min(1, k * 1.3)));
+      S.road = ease.out(Math.max(0, (k - .25) / .75));
+      S.camK = e;
+      ringMat.opacity = .25 * (1 - k);
+    }, () => { setState('drive'); }));
+}
+function toOff() {
+  if (S.state === 'off') return;
+  if (S.state === 'acc') { anim = null; S.queue = null; setState('off'); S.lights = { running: 0, lowbeam: 0, highbeam: 0, lowhighbeam: 0, fog: 0, brakelights: 0, signal_L: 0, signal_R: 0 }; S.high = false; S.hazard = false; ringMat.opacity = 0; S.acc = false; S.rpm = 0; return; }
+  setState('stopping'); S.targetSpeed = 0; document.getElementById('spd').value = 0;
+  const y0 = S.yaw, y1 = y0 + Math.PI, c0 = S.camK, r0 = S.road, l0 = S.lift;
+  play(2.8, k => {
+      const e = ease.inOut(k);
+      S.yaw = lerp(y0, y1, e); S.camK = lerp(c0, 0, e); S.road = lerp(r0, 0, e); S.lift = lerp(l0, PLATE_H, ease.inOutQ(k));
+    }, () => { S.rpm = 0; S.acc = false; S.lights = { running: 0, lowbeam: 0, highbeam: 0, lowhighbeam: 0, fog: 0, brakelights: 0, signal_L: 0, signal_R: 0 }; S.high = false; S.hazard = false; setState('off'); });
+}
+
+/* ------------------------------------------------------------------ UI (simulated CAN/OBD inputs) */
+const bAcc = document.getElementById('b-acc');
+bAcc.onclick = () => { if (S.state === 'off') { S.acc = true; toAcc(); } else toOff(); };
+document.getElementById('b-start').onclick = () => { S.acc = true; toStart(); };
+document.getElementById('b-off').onclick = () => toOff();
+const spd = document.getElementById('spd');
+spd.oninput = () => { S.targetSpeed = S.state === 'drive' ? +spd.value : 0; if (S.state !== 'drive') spd.value = 0; };
+let paint = 'black';
+document.getElementById('b-paint').onclick = e => { paint = paint === 'black' ? 'white' : 'black'; e.target.textContent = paint === 'black' ? 'Blanc' : 'Noir'; loadCar(paint); };
+document.getElementById('b-theme').onclick = e => {
+  themeMode = { auto: 'day', day: 'night', night: 'auto' }[themeMode];
+  e.target.textContent = 'Thème : ' + { auto: 'auto', day: 'jour', night: 'nuit' }[themeMode];
+};
+const fade = document.getElementById('fade');
+const tells = Object.fromEntries(['lowbeam', 'highbeam', 'fog', 'signal_L', 'signal_R', 'hazard'].map(k => [k, document.getElementById('tl-' + k)]));
+document.getElementById('b-high').onclick = e => { S.high = !S.high; e.target.setAttribute('aria-pressed', S.high); };
+document.getElementById('b-haz').onclick = e => { S.hazard = !S.hazard; e.target.setAttribute('aria-pressed', S.hazard); };
+let demo = null;
+document.getElementById('b-auto').onclick = e => {
+  if (demo) { demo.forEach(clearTimeout); demo = null; e.target.setAttribute('aria-pressed', false); return; }
+  e.target.setAttribute('aria-pressed', true);
+  const at = (ms, f) => setTimeout(f, ms);
+  const run = () => { demo = [
+    at(1500, () => { S.acc = true; toAcc(); }),
+    at(7000, () => toStart()),
+    at(11500, () => { spd.value = 70; spd.oninput(); }),
+    at(17000, () => { spd.value = 20; spd.oninput(); }),
+    at(20000, () => { spd.value = 0; spd.oninput(); }),
+    at(23000, () => toOff()),
+    at(28500, run)]; };
+  run();
+};
+
+/* ------------------------------------------------------------------ frame */
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+let last = performance.now(), t = 0;
+const q = new THREE.Quaternion(), X = new THREE.Vector3(1, 0, 0), tmp = new THREE.Vector3();
+function frame(now) {
+  const rdt = Math.min((now - last) / 1000, 0.25); last = now;   // real time: sequences keep their duration on slow GPUs
+  const dt = Math.min(rdt, 0.05); t += rdt;
+  if (anim) { anim.t += rdt; const k = Math.min(1, anim.t / anim.dur); anim.update(k); if (k >= 1) { const d = anim.done; anim = null; d && d(); } }
+
+  // speed (smoothed like a real needle), brake lights on deceleration
+  const prev = S.speed;
+  S.speed += (S.targetSpeed - S.speed) * Math.min(1, dt * 0.9);
+  const decel = (prev - S.speed) / Math.max(dt, 1e-3);
+  S.lights.brakelights = (S.state === 'drive' && decel > 1.5) ? 1 : 0;
+  const blink = (t % 0.8) < 0.4;
+  const sig = S.hazard ? (blink ? 1 : 0) : S.flash;
+  S.lights.signal_L = S.lights.signal_R = sig;
+  S.lights.highbeam = (S.high && S.lights.lowbeam) ? 1 : 0;
+  for (const id of ['lowbeam', 'highbeam', 'fog', 'signal_L', 'signal_R']) tells[id].classList.toggle('on', !!S.lights[id] && !(id === 'lowbeam' && S.lights.highbeam));
+  tells.hazard.classList.toggle('on', S.hazard || S.flash > 0);
+  fade.style.opacity = S.road.toFixed(3);
+  const bgHex = '#' + scene.background.getHexString(); if (bgHex !== fade.dataset.bg) { fade.dataset.bg = bgHex; fade.style.setProperty('--fadebg', bgHex); }
+  document.getElementById('kmh').textContent = Math.round(S.speed);
+  document.getElementById('spd-v').textContent = Math.round(S.targetSpeed);
+  if (S.state === 'drive') S.rpm = 850 + S.speed * 22;
+  document.getElementById('st-sig').textContent = `ACC ${S.acc ? 1 : 0} · RPM ${Math.round(S.rpm)}`;
+  bAcc.setAttribute('aria-pressed', S.acc);
+
+  // rig: yaw, height, engine-start shake
+  S.shake = Math.max(0, S.shake - dt * 2.2);
+  rig.rotation.y = S.yaw;
+  // the car always sits on the plate surface (the plate sinks into the ground when the road appears)
+  const plateY = -PLATE_H * 1.05 * S.road;
+  rig.position.y = Math.max(0, PLATE_H + plateY);
+  // engine-start shake moves the body only (not the shadow) -> no flicker against the plate
+  if (car) { car.root.position.y = Math.abs(Math.sin(t * 90)) * 0.004 * S.shake; car.root.rotation.z = Math.sin(t * 70) * 0.003 * S.shake; }
+  plate.rotation.y = S.yaw;                                        // turntable turns with the car
+  plate.position.y = plateY;
+  plateMat.opacity = plateSide.opacity = 1 - S.road; floorGlow.material.opacity = 1 - S.road; plate.visible = S.road < .999;
+  roadMat.opacity = S.road; road.visible = S.road > .001;
+  themeK += (themeTarget() - themeK) * Math.min(1, rdt * 3); applyTheme(themeK);
+  roadTex.offset.y += (S.speed / 3.6) * dt / TILE;              // forward = lines come from the top and go down the screen
+  ringMat.opacity *= S.state === 'off' ? 0.9 : 1;
+
+  // camera between showroom and chase
+  cam.pos.lerpVectors(POSE.showroom.pos, POSE.drive.pos, S.camK);
+  cam.tgt.lerpVectors(POSE.showroom.tgt, POSE.drive.tgt, S.camK);
+  // back the camera off on narrow screens so the whole car + plate stays in frame (head unit = wide, phone/pane = narrow)
+  const fit = Math.max(1, 1.75 / camera.aspect);
+  camera.position.copy(cam.tgt).addScaledVector(tmp.subVectors(cam.pos, cam.tgt), fit); camera.lookAt(cam.tgt);
+  if (camOverride) { camera.position.fromArray(camOverride.pos); camera.lookAt(...camOverride.tgt); }
+
+  if (car) {
+    const vs = S.speed / 3.6;
+    for (const w of car.wheels) { w.a += vs / 0.33 * dt;   // forward roll: clockwise seen from the right, anticlockwise from the left
+      w.o.quaternion.copy(w.q0).multiply(q.setFromAxisAngle(X, w.a)); }
+    for (const m of car.lamps) {
+      const e = m.userData.electrics || {}; let k = 0;
+      for (const key in e) k = Math.max(k, (S.lights[key] || 0) * e[key]);
+      m.emissive.fromArray(m.userData.emissiveOn || [1, 1, 1]); m.emissiveIntensity = k * Math.min(m.userData.emissiveStrength || 3, 6);
+    }
+  }
+  renderer.render(scene, camera);
+  if (!manual) requestAnimationFrame(frame);
+}
+let manual = false, camOverride = null;   // test hook: fixed camera for inspection renders
+loadCar('black').then(() => requestAnimationFrame(frame));
+// test hook: advance simulated time without rAF (hidden tab / CI), optionally return a JPEG of the last frame
+window.__home = { S, toAcc, toStart, toOff, cam(pos, tgt) { camOverride = pos ? { pos, tgt } : null; }, size(w, h) { renderer.setPixelRatio(1); renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix(); },
+  step(sec, snap = false) { manual = true; const n = Math.round(sec * 30); for (let i = 0; i < n; i++) frame(last + 1000 / 30); manual = false;
+    return snap ? renderer.domElement.toDataURL('image/jpeg', .75) : S.state; } };
+</script>
+</body>
+</html>

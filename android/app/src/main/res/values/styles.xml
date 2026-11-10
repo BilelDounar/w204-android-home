@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- first native frame = the intro's darkness (#030405): no flash before the page paints -->
+    <style name="W204.Theme" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorBackground">#030405</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

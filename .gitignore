@@ -1,0 +1,34 @@
+# --- copyrighted third-party content: never published ---
+Mercedes_W204/
+*.glb
+glb/renders/
+web/app/assets/intro_*.jpg
+web/home/assets/
+web/probe/assets/
+*.apk
+*.aab
+
+# --- private ---
+backups/
+adb/reports/
+android/signing/
+*.keystore
+*.jks
+android/local.properties
+.claude/
+
+# --- build output / deps ---
+node_modules/
+web/app/dist/
+web/*/dist/
+android/build/
+android/app/build/
+android/.gradle/
+.gradle/
+build/
+*.map
+.DS_Store
+__pycache__/
+docs/*.png
+web/home/*.jpg
+CLAUDE.md

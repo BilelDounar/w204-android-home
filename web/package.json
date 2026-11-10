@@ -1,0 +1,11 @@
+{
+  "name": "w204-web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "build": "esbuild app/src/main.js --bundle --format=iife --target=chrome69 --minify --sourcemap --outfile=app/dist/app.js",
+    "watch": "esbuild app/src/main.js --bundle --format=iife --target=chrome69 --sourcemap --outfile=app/dist/app.js --watch"
+  },
+  "dependencies": { "three": "0.170.0" },
+  "devDependencies": { "esbuild": "0.24.0" }
+}

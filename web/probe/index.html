@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>W204 Probe</title>
+<style>
+  :root { --bg:#0d0f12; --fg:#e7eaee; --mute:#8a929d; --ok:#34c759; --ko:#ff453a; --warn:#ffa31a; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg); font:13px/1.45 ui-monospace,Menlo,monospace; overflow:hidden; }
+  canvas { position:fixed; inset:0; width:100%; height:100%; display:block; }
+  #hud { position:fixed; left:12px; top:12px; background:rgba(13,15,18,.78); border:1px solid #2a3039; border-radius:8px; padding:10px 12px; max-width:min(560px,calc(100% - 24px)); white-space:pre-wrap; }
+  #bar { position:fixed; right:12px; bottom:12px; display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+  button { font:inherit; color:var(--fg); background:#191d23; border:1px solid #2a3039; border-radius:6px; padding:10px 14px; }
+  .ok { color:var(--ok) } .ko { color:var(--ko) } .warn { color:var(--warn) }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="hud">W204 probe — démarrage…</div>
+<div id="bar">
+  <button id="paint">Blanc</button><button id="doors">Portes</button><button id="lights">Feux</button><button id="spin">Roues</button>
+</div>
+
+<!-- Classic script first: reports even if ES modules / importmap aren't supported by this WebView -->
+<script>
+  window.__probe = { ua: navigator.userAgent, dpr: devicePixelRatio, vw: innerWidth, vh: innerHeight, importmap: HTMLScriptElement.supports && HTMLScriptElement.supports('importmap') };
+  (function () {
+    var c = document.createElement('canvas'), gl2 = c.getContext('webgl2'), gl = gl2 || c.getContext('webgl');
+    var p = window.__probe; p.webgl = gl2 ? 2 : gl ? 1 : 0;
+    if (gl) {
+      var dbg = gl.getExtension('WEBGL_debug_renderer_info');
+      p.gpu = dbg ? gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER);
+      p.maxTex = gl.getParameter(gl.MAX_TEXTURE_SIZE);
+    }
+    p.wasm = typeof WebAssembly === 'object';
+    var webp = document.createElement('canvas'); webp.width = webp.height = 1;
+    p.webp = webp.toDataURL('image/webp').indexOf('data:image/webp') === 0;
+    document.getElementById('hud').textContent =
+      'UA ' + p.ua + '\nécran ' + p.vw + '×' + p.vh + ' @' + p.dpr + '\nWebGL ' + p.webgl + ' · ' + (p.gpu || '?') + ' · maxTex ' + p.maxTex +
+      '\nimportmap ' + p.importmap + ' · wasm ' + p.wasm + ' · webp ' + p.webp + '\nchargement du GLB…';
+    if (!p.importmap) document.getElementById('hud').innerHTML += '\n<span class="ko">importmap non supporté : WebView trop ancienne (≥ Chrome 89 requis)</span>';
+  })();
+</script>
+
+<script type="importmap">
+{ "imports": { "three": "./vendor/three.module.js", "three/addons/": "./vendor/jsm/" } }
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { MeshoptDecoder } from 'three/addons/libs/meshopt_decoder.module.js';
+
+const P = window.__probe, hud = document.getElementById('hud');
+const renderer = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0x0d0f12);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
+camera.position.set(3.3, 1.45, -5.2); camera.lookAt(0, 0.62, -0.15);       // rear ¾ (home tab)
+const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+
+let car = null, paint = 'black', doors = false, lights = false, spin = false;
+const cache = {};
+async function load(p) {
+  const t0 = performance.now();
+  const g = cache[p] || await loader.loadAsync(`w204_facelift_${p}.glb`);
+  cache[p] = g;
+  if (car) scene.remove(car.root);
+  const parts = [], wheels = [], lamps = [];
+  g.scene.traverse(o => {
+    const ex = o.userData || {};
+    if (['door', 'trunk', 'hood'].includes(ex.type)) parts.push({ o, ex, q0: o.quaternion.clone() });
+    if (ex.type === 'wheel') wheels.push({ o, q0: o.quaternion.clone(), a: 0 });
+    if (o.isMesh && o.material.userData.light) lamps.push(o.material);
+  });
+  car = { root: g.scene, parts, wheels, lamps };
+  scene.add(g.scene);
+  P.loadMs = Math.round(performance.now() - t0);
+}
+
+function resize() { renderer.setSize(innerWidth, innerHeight, false); camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); }
+addEventListener('resize', resize); resize();
+
+document.getElementById('paint').onclick = e => { paint = paint === 'black' ? 'white' : 'black'; e.target.textContent = paint === 'black' ? 'Blanc' : 'Noir'; load(paint); };
+document.getElementById('doors').onclick = () => doors = !doors;
+document.getElementById('lights').onclick = () => lights = !lights;
+document.getElementById('spin').onclick = () => spin = !spin;
+
+let frames = 0, acc = 0, fps = 0, last = performance.now(), t = 0;
+const q = new THREE.Quaternion(), ax = new THREE.Vector3();
+function loop(now) {
+  const dt = Math.min((now - last) / 1000, 0.1); last = now; t += dt;
+  frames++; acc += dt; if (acc >= 1) { fps = frames / acc; frames = 0; acc = 0; report(); }
+  if (car) {
+    for (const p of car.parts) {
+      p.k = (p.k || 0) + (((doors ? 1 : 0)) - (p.k || 0)) * Math.min(1, dt * 4);
+      q.setFromAxisAngle(ax.fromArray(p.ex.hingeAxis), THREE.MathUtils.degToRad(p.ex.openAngleDeg * p.ex.openSign * p.k));
+      p.o.quaternion.copy(p.q0).multiply(q);
+    }
+    for (const w of car.wheels) { if (spin) w.a += dt * 13.9 / 0.33; w.o.quaternion.copy(w.q0).multiply(q.setFromAxisAngle(ax.set(1, 0, 0), w.a)); }
+    const blink = (t % 0.8) < 0.4;
+    for (const m of car.lamps) {
+      const ex = m.userData, e = ex.electrics || {};
+      const on = lights ? Math.max(e.brakelights || 0, e.lowhighbeam || 0, e.lowbeam || 0, e.running || 0, (blink ? (e.signal_L || e.signal_R || 0) : 0)) : 0;
+      m.emissive.fromArray(ex.emissiveOn || [1, 1, 1]); m.emissiveIntensity = on * Math.min(ex.emissiveStrength || 3, 6);
+    }
+  }
+  renderer.render(scene, camera);
+  requestAnimationFrame(loop);
+}
+function report() {
+  const i = renderer.info.render;
+  const cls = fps >= 50 ? 'ok' : fps >= 28 ? 'warn' : 'ko';
+  hud.innerHTML = `UA ${P.ua}\nécran ${P.vw}×${P.vh} @${P.dpr} · rendu ×${renderer.getPixelRatio()}\nWebGL ${P.webgl} · ${P.gpu || '?'} · maxTex ${P.maxTex}\nimportmap ${P.importmap} · wasm ${P.wasm} · webp ${P.webp}\n` +
+    `GLB ${paint} chargé en ${P.loadMs ?? '…'} ms · ${i.calls} draw calls · ${(i.triangles / 1000).toFixed(0)}k tris\n<span class="${cls}">${fps.toFixed(1)} FPS</span>`;
+  P.fps = fps; P.calls = i.calls; P.tris = i.triangles;
+}
+load('black').catch(e => { hud.innerHTML += `\n<span class="ko">Erreur GLB : ${e.message}</span>`; });
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

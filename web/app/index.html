@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="fr" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>W204 Accueil</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="fade"></div>
+
+<!-- car zone (left) -->
+<section id="carzone" aria-label="Véhicule">
+  <div id="speedo"><span id="kmh">0</span><small>km/h</small></div>
+  <div id="tells" aria-label="Témoins">
+    <svg id="tl-signal_L" viewBox="0 0 24 24" aria-label="Clignotant gauche"><path d="M10 5 3 12l7 7v-4h10V9H10z" fill="#34c759"/></svg>
+    <svg id="tl-lowbeam" viewBox="0 0 24 24" aria-label="Feux de croisement"><path d="M13 6c4 0 7 2.7 7 6s-3 6-7 6c-1 0-1.6-.3-1.6-.3V6.3S12 6 13 6z" fill="#34c759"/><path d="M9 8 3 9.5M9 12l-6 1.5M9 16l-6 1.5" stroke="#34c759" stroke-width="2" stroke-linecap="round"/></svg>
+    <svg id="tl-highbeam" viewBox="0 0 24 24" aria-label="Feux de route"><path d="M13 6c4 0 7 2.7 7 6s-3 6-7 6c-1 0-1.6-.3-1.6-.3V6.3S12 6 13 6z" fill="#0a84ff"/><path d="M9 8H3M9 12H3M9 16H3" stroke="#0a84ff" stroke-width="2" stroke-linecap="round"/></svg>
+    <svg id="tl-fog" viewBox="0 0 24 24" aria-label="Antibrouillards"><path d="M13 6c4 0 7 2.7 7 6s-3 6-7 6c-1 0-1.6-.3-1.6-.3V6.3S12 6 13 6z" fill="#34c759"/><path d="M9 8 3 9.5M9 12l-6 1.5M9 16l-6 1.5" stroke="#34c759" stroke-width="2" stroke-linecap="round"/><path d="M5 5.5c1 1.5 1 4 0 5.5M5 13c1 1.5 1 4 0 5.5" stroke="#34c759" stroke-width="1.6" fill="none"/></svg>
+    <svg id="tl-hazard" viewBox="0 0 24 24" aria-label="Warning"><path d="M12 3 22 20H2z" fill="none" stroke="#ff3b30" stroke-width="2.4" stroke-linejoin="round"/><path d="M12 9.5 16.3 17H7.7z" fill="none" stroke="#ff3b30" stroke-width="1.8" stroke-linejoin="round"/></svg>
+    <svg id="tl-reverse" viewBox="0 0 24 24" aria-label="Marche arrière"><text x="12" y="17" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor">R</text></svg>
+    <svg id="tl-handbrake" viewBox="0 0 24 24" aria-label="Frein à main"><circle cx="12" cy="12" r="7" fill="none" stroke="#ff3b30" stroke-width="2"/><text x="12" y="16" text-anchor="middle" font-size="10" font-weight="700" fill="#ff3b30">P</text></svg>
+    <svg id="tl-signal_R" viewBox="0 0 24 24" aria-label="Clignotant droit"><path d="M14 5l7 7-7 7v-4H4V9h10z" fill="#34c759"/></svg>
+  </div>
+  <div id="alert" role="status" hidden></div>
+  <div id="call" role="alertdialog" aria-label="Appel" hidden>
+    <div class="av" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="4.2" fill="currentColor"/><path d="M3.8 21c.7-4.3 4.1-6.8 8.2-6.8s7.5 2.5 8.2 6.8z" fill="currentColor"/></svg></div>
+    <div class="who"><span id="call-st">Appel entrant</span><b id="call-num"></b></div>
+    <div class="acts">
+      <div class="act"><button id="call-end" aria-label="Refuser"><svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.1.3-4.6.7v3.1c0 .4-.2.7-.6.9-.9.4-1.8 1-2.6 1.7-.2.2-.5.3-.7.3-.3 0-.5-.1-.7-.3L.3 12.9c-.2-.2-.3-.4-.3-.7s.1-.5.3-.7C3.3 8.6 7.4 7 12 7s8.7 1.6 11.7 4.5c.2.2.3.4.3.7s-.1.5-.3.7l-2.5 2.5c-.2.2-.4.3-.7.3s-.5-.1-.7-.3c-.8-.7-1.7-1.3-2.6-1.7-.4-.2-.6-.5-.6-.9V9.7C15.1 9.3 13.6 9 12 9z" fill="currentColor"/></svg></button><span id="call-end-l">Refuser</span></div>
+      <div class="act ok"><button id="call-ok" aria-label="Accepter"><svg viewBox="0 0 24 24"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1A17 17 0 0 1 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.3.2 2.5.6 3.6.1.3 0 .7-.2 1z" fill="currentColor"/></svg></button><span>Accepter</span></div>
+    </div>
+  </div>
+  <nav id="dock" aria-label="Raccourcis">
+    <button id="btn-info" aria-label="Informations véhicule"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 10.5v6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="7.4" r="1.2" fill="currentColor"/></svg><span>Véhicule</span></button>
+    <button id="btn-apps" aria-label="Toutes les applications"><svg viewBox="0 0 24 24"><g fill="currentColor"><rect x="3" y="3" width="4.6" height="4.6" rx="1.2"/><rect x="9.7" y="3" width="4.6" height="4.6" rx="1.2"/><rect x="16.4" y="3" width="4.6" height="4.6" rx="1.2"/><rect x="3" y="9.7" width="4.6" height="4.6" rx="1.2"/><rect x="9.7" y="9.7" width="4.6" height="4.6" rx="1.2"/><rect x="16.4" y="9.7" width="4.6" height="4.6" rx="1.2"/><rect x="3" y="16.4" width="4.6" height="4.6" rx="1.2"/><rect x="9.7" y="16.4" width="4.6" height="4.6" rx="1.2"/><rect x="16.4" y="16.4" width="4.6" height="4.6" rx="1.2"/></g></svg><span>Applis</span></button>
+    <button id="btn-nav" aria-label="Waze en écran partagé"><svg viewBox="0 0 24 24"><rect x="2.5" y="4" width="19" height="16" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9.5 4v16" stroke="currentColor" stroke-width="1.8"/><path d="M15.5 8.2c-1.6 0-2.8 1.2-2.8 2.8 0 2.1 2.8 4.8 2.8 4.8s2.8-2.7 2.8-4.8c0-1.6-1.2-2.8-2.8-2.8z" fill="currentColor"/></svg><span>Waze</span></button>
+    <button id="btn-led" aria-label="Éclairage intérieur"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg><span>Éclairage</span></button>
+  </nav>
+</section>
+
+<!-- right column -->
+<aside id="side">
+  <header id="topbar">
+    <div class="clock"><b id="t-time">--:--</b><span id="t-date"></span><span id="t-odo"></span></div>
+    <div class="chips">
+      <span id="c-bt" class="chip" title="Téléphone"><svg viewBox="0 0 24 24"><path d="m7 7 10 10-5 4V3l5 4L7 17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg><em>Téléphone</em></span>
+      <span id="t-temp" class="chip" hidden></span>
+      <span id="c-led" class="chip" title="LED"><svg viewBox="0 0 24 24"><path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2V16h5v-.1c0-.8.4-1.5 1-2A6 6 0 0 0 12 3z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/></svg><em>LED</em></span>
+      <button id="btn-set" class="chip" aria-label="Réglages"><svg viewBox="0 0 24 24"><path d="M10.3 2.6h3.4l.5 2.5c.6.2 1.2.5 1.7.9l2.4-.9 1.7 2.9-1.9 1.7c.1.6.1 1.3 0 1.9l1.9 1.7-1.7 2.9-2.4-.9c-.5.4-1.1.7-1.7.9l-.5 2.5h-3.4l-.5-2.5c-.6-.2-1.2-.5-1.7-.9l-2.4.9-1.7-2.9 1.9-1.7a6 6 0 0 1 0-1.9L3.9 8l1.7-2.9 2.4.9c.5-.4 1.1-.7 1.7-.9z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="2.9" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
+    </div>
+  </header>
+  <section id="waze" aria-label="Navigation">
+    <div class="nav-ico"><svg viewBox="0 0 24 24"><path d="M12 2.5c-4 0-7 3-7 7 0 5.2 7 12 7 12s7-6.8 7-12c0-4-3-7-7-7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.6" fill="currentColor"/></svg></div>
+    <div class="nav-txt"><span class="lbl">Navigation</span><b>Où allons-nous ?</b><small>Waze · trafic en temps réel</small></div>
+    <span class="cta">Ouvrir Waze<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+  </section>
+  <section id="music" aria-label="Musique">
+    <div id="m-cover"><svg viewBox="0 0 24 24"><path d="M9 18V6l11-2v12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="6.5" cy="18" r="2.5" fill="currentColor"/><circle cx="17.5" cy="16" r="2.5" fill="currentColor"/></svg></div>
+    <div class="meta"><div id="m-title">Aucune musique</div><div id="m-artist">Connecte ton téléphone en Bluetooth</div></div>
+    <div class="prog"><span id="m-pos">0:00</span><div id="m-progress"><i></i></div><span id="m-dur">0:00</span></div>
+    <div class="ctrl">
+      <button id="m-prev" aria-label="Précédent"><svg viewBox="0 0 24 24"><path d="M6 5v14M19 5 9 12l10 7z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+      <button id="m-toggle" aria-label="Lecture / pause" data-playing="0"><svg class="play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z" fill="currentColor"/></svg><svg class="pause" viewBox="0 0 24 24"><path d="M7 4h3.5v16H7zM13.5 4H17v16h-3.5z" fill="currentColor"/></svg></button>
+      <button id="m-next" aria-label="Suivant"><svg viewBox="0 0 24 24"><path d="M18 5v14M5 5l10 7-10 7z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg></button>
+    </div>
+  </section>
+</aside>
+
+<!-- intro: the car emerges from the dark and switches its headlights on, while the 3D scene loads -->
+<div id="poster" aria-hidden="true">
+  <div class="stage">
+    <img class="car off" src="assets/intro_off.jpg" alt="">
+    <img class="car on" src="assets/intro_on.jpg" alt="">
+    <i class="glow g1"></i><i class="glow g2"></i>
+  </div>
+</div>
+<script src="dist/app.js"></script>
+</body>
+</html>

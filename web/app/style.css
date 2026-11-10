@@ -1,0 +1,362 @@
+/* No backdrop-filter anywhere: re-blurring the 3D scene every frame costs ~50 % FPS on head-unit GPUs (measured).
+   Layout: head unit landscape. Car scene full-bleed (canvas), car framed in the left 62 %; right column = Waze zone + music. */
+:root {
+  --scene-bg: #0b0d10;
+  /* semantic tokens (ui-ux-pro-max: minimal Swiss, slate palette, 8-pt grid) */
+  --fg: #f1f5f9; --mute: #a3adbb; --card: rgba(21, 26, 34, .94); --line: #283140; --accent: #7cc4ff; --tint: rgba(124, 196, 255, .12);
+  --press: rgba(255, 255, 255, .06); --ok: #34d399; --ok-line: rgba(52, 211, 153, .45);
+  --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px; --r-md: 20px; --r-lg: 24px;
+  --side-w: 52vw;
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: dark;
+}
+:root[data-theme="light"] { --fg: #0f172a; --mute: #526074; --card: rgba(255, 255, 255, .96); --line: #dde3ea; --accent: #1d6fd8; --tint: rgba(29, 111, 216, .09);
+  --press: rgba(15, 23, 42, .05); --ok: #059669; --ok-line: rgba(5, 150, 105, .4); color-scheme: light; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: var(--scene-bg); color: var(--fg); font: 15px/1.35 var(--font); -webkit-user-select: none; user-select: none; }
+canvas#c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus, button:focus-visible { outline: none; }   /* touch screen: no keyboard focus ring */
+svg { display: block; }
+
+/* top fade over the road (hides where the lines come from, leaves room for tell-tales) */
+#fade { position: fixed; left: 0; right: 0; top: 0; height: 34vh; pointer-events: none; opacity: 0;
+  background: linear-gradient(to bottom, var(--scene-bg) 0%, var(--scene-bg) 30%, transparent 100%); }
+
+#carzone { position: fixed; left: 0; top: 0; bottom: 0; right: var(--side-w); pointer-events: none; }
+#carzone > * { pointer-events: auto; }
+#speedo { position: absolute; left: max(28px, env(safe-area-inset-left, 0px)); top: max(16px, env(safe-area-inset-top, 0px));
+  font: 300 clamp(56px, 9vh, 104px)/.9 var(--font); letter-spacing: -.03em; font-variant-numeric: tabular-nums; opacity: 0; transition: opacity .6s; pointer-events: none; }
+#speedo small { display: block; margin-top: 6px; font: 500 13px ui-monospace, Menlo, monospace; color: var(--mute); letter-spacing: .14em; text-transform: uppercase; }
+#tells { position: absolute; left: 50%; top: max(16px, env(safe-area-inset-top, 0px)); transform: translateX(-50%); display: flex; gap: 14px; pointer-events: none; }
+#tells svg { width: 30px; height: 30px; opacity: 0; transition: opacity .1s; color: var(--fg); }
+#tells svg.on { opacity: 1; }
+#alert { position: absolute; left: 50%; top: 64px; transform: translateX(-50%); padding: 8px 16px; border-radius: 999px; background: #ff3b30; color: #fff; font-weight: 600; letter-spacing: .02em; pointer-events: none; }
+#dock { position: absolute; left: var(--sp-6); bottom: var(--sp-5); display: flex; gap: var(--sp-3); }
+#dock button { width: 104px; height: 100px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+  border-radius: var(--r-md); background: var(--card); border: 1px solid var(--line); transition: transform .12s, background .2s; }
+#dock button svg { width: 36px; height: 36px; }
+#dock button span { font: 500 14px var(--font); color: var(--mute); letter-spacing: .01em; }
+#dock button:active { transform: scale(.95); background: var(--press); }
+
+/* right column: status bar, navigation, music (8-pt grid) */
+#side { position: fixed; top: 0; right: 0; bottom: 0; width: var(--side-w); box-sizing: border-box; display: flex; flex-direction: column; gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-4) var(--sp-4) 0; }
+#side > section { background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); min-height: 0; }
+#topbar { flex: none; height: 56px; display: flex; align-items: center; justify-content: space-between; padding: 0 var(--sp-2); }
+#topbar .clock { display: flex; align-items: baseline; gap: var(--sp-3); }
+#t-time { font: 600 34px/1 var(--font); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+#t-date { font-size: 17px; color: var(--mute); text-transform: capitalize; }
+#topbar .chips { display: flex; gap: var(--sp-2); }
+.chip { display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 14px; border-radius: 999px; border: 1px solid var(--line); color: var(--mute); font-size: 15px; transition: color .3s, border-color .3s; }
+.chip svg { width: 20px; height: 20px; }
+.chip em { font-style: normal; }
+.chip.on { color: var(--fg); border-color: var(--ok-line); }
+.chip.on svg { color: var(--ok); }
+
+#waze { flex: 1; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-5); padding: var(--sp-5) var(--sp-6); cursor: pointer; transition: transform .12s, background .2s; }
+#waze:active { transform: scale(.99); background: var(--press); }
+#waze .nav-ico { width: 112px; height: 112px; border-radius: var(--r-lg); display: grid; place-items: center; background: var(--tint); color: var(--accent); }
+#waze .nav-ico svg { width: 56px; height: 56px; }
+#waze .nav-txt { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+#waze .nav-txt b { font: 600 clamp(26px, 4.4vh, 36px)/1.1 var(--font); letter-spacing: -.01em; }
+#waze .nav-txt small { font-size: 17px; color: var(--mute); }
+#waze .cta { display: flex; align-items: center; gap: 6px; height: 60px; padding: 0 18px 0 24px; border-radius: 999px; background: var(--fg); color: var(--scene-bg); font: 600 18px var(--font); }
+#waze .cta svg { width: 22px; height: 22px; }
+.lbl { font: 500 13px ui-monospace, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+
+#music { flex: 0 0 auto; height: clamp(200px, 40vh, 290px); box-sizing: border-box; display: grid; grid-template-columns: auto 1fr auto; grid-template-rows: 1fr auto;
+  align-items: center; column-gap: var(--sp-5); row-gap: var(--sp-3); padding: var(--sp-5) var(--sp-6); }
+#m-cover { position: relative; display: grid; place-items: center; color: rgba(255,255,255,.55); grid-row: 1 / span 2;
+  width: clamp(150px, 30vh, 220px); height: clamp(150px, 30vh, 220px); border-radius: var(--r-md); background: linear-gradient(135deg, #2b3340, #151a21) center/cover;
+  box-shadow: 0 10px 30px rgba(0,0,0,.25); }
+.meta { min-width: 0; grid-column: 2; grid-row: 1; }
+#m-title { font: 600 clamp(24px, 4vh, 32px)/1.15 var(--font); letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#m-artist { font-size: clamp(17px, 2.7vh, 22px); margin-top: 6px; color: var(--mute); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ctrl { grid-column: 3; grid-row: 1; display: flex; align-items: center; gap: var(--sp-2); }
+.ctrl button { width: 68px; height: 68px; display: grid; place-items: center; border-radius: 50%; transition: transform .12s, background .2s; }
+.ctrl button:active { transform: scale(.92); background: var(--press); }
+.ctrl button svg { width: 30px; height: 30px; }
+#m-toggle { width: 84px; height: 84px; background: var(--fg); color: var(--scene-bg); }
+#m-toggle svg { width: 34px; height: 34px; }
+#m-toggle .pause, #m-toggle[data-playing="1"] .play { display: none; }
+#m-toggle[data-playing="1"] .pause { display: block; }
+.prog { grid-column: 2 / 4; grid-row: 2; display: flex; align-items: center; gap: var(--sp-3); font-size: 14px; color: var(--mute); font-variant-numeric: tabular-nums; }
+#m-progress { flex: 1; height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; }
+#m-progress i { display: block; height: 100%; width: 0; background: var(--fg); transition: width .9s linear; }
+@media (prefers-reduced-motion: reduce) { #dock button, #waze, .ctrl button, #m-progress i { transition: none; } }
+
+/* narrow / phone preview: scene alone */
+body.full #side { display: none; }
+body.full #carzone { right: 0; }
+
+/* intro (replaces a loading screen): front of the car in total darkness — the star appears, then the headlights light up.
+   ~1.7 s minimum, then crossfade into the live scene */
+#poster { position: fixed; inset: 0; background: #030405; overflow: hidden; transition: opacity .8s ease; z-index: 5; }
+#poster.gone { opacity: 0; pointer-events: none; }
+/* 16:10 stage that always covers the screen, so the headlight positions (in %) stay on the headlights */
+#poster .stage { position: absolute; left: 50%; top: 50%; width: max(100vw, 160vh); aspect-ratio: 16 / 10; transform: translate(-50%, -50%); }
+#poster .car { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#poster .off { opacity: 0; animation: emerge 1s ease-out .1s forwards; }
+#poster .on { opacity: 0; animation: lightsOn .5s linear 1.05s forwards; }
+#poster .glow { position: absolute; width: 12%; aspect-ratio: 1; transform: translate(-50%, -50%); border-radius: 50%; opacity: 0; mix-blend-mode: screen;
+  background: radial-gradient(circle, rgba(235, 244, 255, .95) 0%, rgba(170, 205, 255, .35) 18%, rgba(120, 170, 255, .08) 45%, transparent 70%);
+  animation: lightsOn .5s linear 1.05s forwards, breathe 2.6s ease-in-out 1.7s infinite; }
+#poster .glow::after { content: ""; position: absolute; left: -60%; right: -60%; top: 49%; height: 2%; border-radius: 50%;
+  background: linear-gradient(90deg, transparent, rgba(200, 225, 255, .55), transparent); }   /* thin horizontal flare */
+#poster .g1 { left: 13%; top: 41.6%; }
+#poster .g2 { left: 87%; top: 41.6%; }
+@keyframes emerge { to { opacity: 1; } }
+@keyframes lightsOn { 0% { opacity: 0; } 12% { opacity: .75; } 24% { opacity: .1; } 40% { opacity: .9; } 52% { opacity: .35; } 100% { opacity: 1; } }
+@keyframes breathe { 0%, 100% { opacity: 1; transform: translate(-50%, -50%) scale(1); } 50% { opacity: .72; transform: translate(-50%, -50%) scale(.92); } }
+@media (prefers-reduced-motion: reduce) { #poster .off, #poster .on, #poster .glow { animation: none; opacity: 1; } }
+
+/* dev simulation panel (?dev=1) */
+#dev { position: fixed; left: 50%; bottom: 12px; transform: translateX(-50%); z-index: 10; width: min(720px, 96vw); background: rgba(10, 12, 15, .92); color: #e7eaee;
+  border: 1px solid #333a44; border-radius: 12px; padding: 10px; display: grid; gap: 8px; font-size: 13px; }
+#dev .row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+#dev button { padding: 8px 10px; border: 1px solid #333a44; border-radius: 8px; background: #1a1e24; }
+#dev button[aria-pressed="true"] { border-color: var(--accent); background: rgba(90, 200, 250, .16); }
+#dev input[type=range] { flex: 1; }
+
+#m-cover svg { width: 44%; height: 44%; }
+#m-cover.has-art svg { display: none; }
+
+/* ---- "Véhicule" panel ---- */
+#vehicle { position: fixed; inset: 0; z-index: 8; background: var(--scene-bg); display: flex; flex-direction: column; gap: 18px;
+  padding-block: max(20px, env(safe-area-inset-top, 0px)) max(20px, env(safe-area-inset-bottom, 0px));
+  padding-left: max(28px, env(safe-area-inset-left, 0px)); padding-right: max(28px, env(safe-area-inset-right, 0px)); }
+#vehicle header { display: flex; align-items: center; justify-content: space-between; }
+#vehicle h1 { margin: 0; font: 600 30px/1 var(--font); letter-spacing: -.01em; }
+#v-close { width: 64px; height: 64px; border-radius: 18px; display: grid; place-items: center; background: var(--card); border: 1px solid var(--line); }
+#v-close svg { width: 28px; height: 28px; }
+.vgrid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.15fr 1fr 1fr 1fr; gap: 16px; }
+#vehicle .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+#vehicle .lbl { font: 500 13px ui-monospace, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); }
+#vehicle .big { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+#vehicle .big b { font: 300 clamp(44px, 8.4vh, 72px)/1 var(--font); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+#vehicle .big small { font-size: 17px; color: var(--mute); }
+#vehicle .kv { margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px 18px; }
+#vehicle .kv dt { font-size: 14px; color: var(--mute); }
+#vehicle .kv dd { margin: 4px 0 0; font: 500 22px/1.1 var(--font); font-variant-numeric: tabular-nums; }
+#vehicle .chips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#vehicle .chips li { font-size: 17px; padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line); }
+#vehicle .chips li.on { border-color: #34c759; color: #34c759; }
+#vehicle .chips li.warn { border-color: #ff3b30; color: #ff3b30; }
+#vehicle .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+#vehicle .bar i { display: block; height: 100%; background: var(--fg); opacity: .8; }
+#vehicle .bar i.warn { background: #ff3b30; opacity: 1; }
+#vehicle .svc { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 16px; color: var(--mute); }
+#vehicle .svc button, #vehicle .wide { height: 56px; padding: 0 18px; border-radius: 14px; border: 1px solid var(--line); font-size: 17px; font-weight: 600; }
+#vehicle .wide { margin-top: auto; width: 100%; }
+#vehicle[hidden] { display: none; }
+
+/* Éclairage panel (native LED control) */
+#led { position: fixed; inset: 0; z-index: 8; background: var(--scene-bg); display: flex; flex-direction: column; gap: 18px; padding: 20px 28px; --led: #fff; }
+#led[hidden] { display: none; }
+#led header { display: flex; align-items: center; justify-content: space-between; }
+#led h1 { margin: 0; font: 600 30px/1 var(--font); letter-spacing: -.01em; }
+#l-status { display: block; margin-top: 6px; font-size: 15px; color: var(--mute); }
+#l-status.connected { color: #1fae55; } #l-status.error { color: #e5484d; }
+#l-close { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 16px; background: var(--card); border: 1px solid var(--line); color: var(--fg); }
+#l-close svg { width: 26px; height: 26px; }
+#led .lgrid { flex: 1; min-height: 0; display: grid; grid-template-columns: 0.65fr 1.1fr 1.55fr; gap: 16px; }
+#led .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+#led .lbl { font: 500 13px ui-monospace, Menlo, monospace; letter-spacing: .14em; text-transform: uppercase; color: var(--mute); display: flex; justify-content: space-between; }
+#led .lbl em { font-style: normal; color: var(--fg); letter-spacing: 0; }
+#l-power { flex: 1; min-height: 140px; border-radius: 22px; border: 1px solid var(--line); background: var(--scene-bg); color: var(--fg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; font: 600 22px var(--font); }
+#l-dot { width: 64px; height: 64px; border-radius: 50%; border: 2px solid var(--line); box-shadow: 0 0 34px var(--led); transition: background .2s, box-shadow .2s; }
+#l-power.off #l-dot { box-shadow: none; } #l-power.off { color: var(--mute); }
+#l-found { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+#l-found button, #led .ghost { width: 100%; height: 56px; border-radius: 14px; border: 1px solid var(--line); background: transparent; color: var(--fg); font: 500 17px var(--font); }
+#led .sw { display: grid; grid-template-columns: repeat(9, 1fr); gap: 12px; }
+#led .sw button { height: clamp(52px, 8vh, 72px); width: clamp(52px, 8vh, 72px); justify-self: center; border-radius: 50%; background: var(--c); border: 3px solid transparent; box-shadow: inset 0 0 0 1px rgba(0,0,0,.12); }
+#led .sw button.sel { border-color: var(--fg); }
+#led input[type=range] { -webkit-appearance: none; appearance: none; width: 100%; height: 44px; border-radius: 22px; margin: 0; outline: none; }
+#l-hue { background: linear-gradient(90deg, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00); }
+#l-bright { background: linear-gradient(90deg, #000, var(--led)); border: 1px solid var(--line); }
+#led input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 44px; height: 44px; border-radius: 50%; background: #fff; border: 3px solid rgba(0,0,0,.25); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
+
+#led .presets { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+#led .presets button { height: 64px; border-radius: 16px; border: 1px solid var(--line); background: var(--scene-bg); color: var(--fg); font: 500 17px var(--font); display: flex; align-items: center; gap: 10px; padding: 0 14px; }
+#led .presets button i { width: 22px; height: 22px; border-radius: 50%; background: var(--c); box-shadow: 0 0 12px var(--c); flex: none; }
+#led .presets button.sel { border: 2px solid var(--fg); }
+#led .tog { display: flex; gap: 14px; align-items: flex-start; padding: 14px 0; border-bottom: 1px solid var(--line); }
+#led .tog input { width: 30px; height: 30px; margin: 2px 0 0; accent-color: var(--fg); flex: none; }
+#led .tog b { display: block; font: 600 18px var(--font); }
+#led .tog small { display: block; margin-top: 4px; font-size: 14px; color: var(--mute); line-height: 1.35; }
+#led .tog input:disabled + span { opacity: .4; }
+
+/* ---- compact: split screen (our app = 1/3 or 1/2 of the head unit) ---- */
+body.compact #carzone { right: 0; }
+body.compact #side { left: 0; right: 0; width: auto; top: 0; bottom: 0; padding: var(--sp-3) var(--sp-4); pointer-events: none; }
+body.compact #side > * { pointer-events: auto; }
+body.compact #topbar { display: none; }   /* split screen: the system status bar (clock, icons) overlays the top */
+body.compact #t-time { font-size: 30px; }
+body.compact #t-date { font-size: 15px; }
+body.compact .chip { width: 40px; padding: 0; justify-content: center; }
+body.compact .chip em { display: none; }
+body.compact #waze { display: none; }
+body.compact #music { margin-top: auto; margin-bottom: 116px; height: auto; padding: var(--sp-4); column-gap: var(--sp-4); row-gap: var(--sp-3);
+  grid-template-columns: auto 1fr; grid-template-rows: auto auto auto; }
+body.compact #m-cover { width: 76px; height: 76px; grid-row: 1; border-radius: 14px; }
+body.compact .meta { grid-column: 2; grid-row: 1; }
+body.compact #m-title { font-size: 22px; }
+body.compact #m-artist { font-size: 17px; margin-top: 2px; }
+/* driving: big, evenly spaced targets on their own row */
+body.compact .ctrl { grid-column: 1 / 3; grid-row: 2; justify-content: space-around; gap: 0; }
+body.compact .ctrl button { width: 84px; height: 76px; border-radius: 22px; background: var(--press); }
+body.compact .ctrl button svg { width: 34px; height: 34px; }
+body.compact #m-toggle { width: 104px; height: 76px; border-radius: 22px; background: var(--fg); }
+body.compact .prog { grid-column: 1 / 3; grid-row: 3; }
+body.compact #dock { left: var(--sp-4); right: var(--sp-4); bottom: var(--sp-3); gap: var(--sp-2); }
+body.compact #dock button { flex: 1; width: auto; height: 92px; }
+body.compact #dock button span { font-size: 13px; }
+body.compact #speedo { top: 72px; font-size: 56px; }
+body.compact #tells { top: 70px; }
+
+#led .lmodes { gap: 12px; overflow: hidden; }
+#led .tog.main { padding: 0 0 10px; }
+#led .mgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+#led .sw2 { display: flex; gap: 10px; align-items: center; min-height: 56px; padding: 6px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--scene-bg); }
+#led .sw2 input { width: 26px; height: 26px; margin: 0; accent-color: var(--fg); flex: none; }
+#led .sw2 b { display: block; font: 600 16px var(--font); }
+#led .sw2 small { display: block; font-size: 12.5px; color: var(--mute); line-height: 1.25; }
+#led .sw2 input:disabled + span { opacity: .4; }
+#led .fx { display: flex; flex-wrap: wrap; gap: 8px; }
+#led .fx button { height: 48px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--scene-bg); color: var(--fg); font: 500 15px var(--font); }
+#led .fx button.sel { border: 2px solid var(--fg); }
+#led .row2 { display: flex; gap: 8px; margin-top: auto; }
+#led .row2 .ghost { flex: 1; height: 52px; }
+
+/* rotary knob selection ring (only while the knob is used) */
+body.knob .kfocus { outline: 4px solid var(--accent) !important; outline-offset: 3px; border-radius: 18px; }
+
+/* ---- compact panels (split screen, vertical-ish window) ---- */
+body.compact #vehicle, body.compact #led { padding: 56px var(--sp-4) var(--sp-4); gap: var(--sp-3); }   /* top: system status bar overlays */
+body.compact #vehicle h1, body.compact #led h1 { font-size: 24px; }
+body.compact #v-close, body.compact #l-close { width: 56px; height: 56px; }
+body.compact .vgrid, body.compact #led .lgrid { grid-template-columns: 1fr 1fr; grid-auto-rows: min-content; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: var(--sp-4); }
+body.compact #vehicle .card, body.compact #led .card { padding: var(--sp-4); gap: var(--sp-3); }
+body.compact #vehicle .big b { font-size: 40px; }
+body.compact #vehicle .card.odo, body.compact #led .lmodes { grid-column: 1 / -1; }
+body.compact #led .lpower { grid-column: 1 / -1; flex-direction: row; align-items: center; flex-wrap: wrap; }
+body.compact #l-power { flex: 1; min-height: 76px; flex-direction: row; gap: var(--sp-3); }
+body.compact #l-dot { width: 40px; height: 40px; }
+body.compact #led .lpower .lbl { display: none; }
+body.compact #led .lpower .ghost { width: auto; flex: 1; }
+body.compact #led .lgrid > .card:nth-child(2) { grid-column: 1 / -1; }
+body.compact #led .presets { grid-template-columns: repeat(3, 1fr); }
+body.compact #led .presets button { height: 56px; font-size: 15px; }
+body.compact #led .lmodes { overflow: visible; }
+@media (max-width: 600px) {           /* 1/3 of the screen */
+  body.compact .vgrid { grid-template-columns: 1fr; }
+  body.compact #led .mgrid { grid-template-columns: 1fr; }
+  body.compact #led .presets { grid-template-columns: 1fr 1fr; }
+}
+body.compact #vehicle .chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 600px) { body.compact #vehicle .chips { grid-template-columns: 1fr; } }
+body.compact #fade { height: 12vh; }
+
+#vehicle header { gap: var(--sp-4); }
+#vehicle header h1 { margin-right: auto; }
+.seg { display: flex; align-items: center; gap: 6px; padding: 4px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); }
+.seg .lbl { padding: 0 8px 0 12px; }
+.seg button { height: 48px; padding: 0 20px; border-radius: 999px; font: 600 16px var(--font); color: var(--mute); }
+.seg button.sel { background: var(--fg); color: var(--scene-bg); }
+body.compact .seg .lbl { display: none; }
+body.compact .seg button { height: 44px; padding: 0 14px; }
+
+/* ---- layout B (Tesla / Polestar): full width car, one bottom bar = player + shortcuts (not compact, not full) ---- */
+body:not(.compact):not(.full) #carzone { right: 0; }
+body:not(.compact):not(.full) #side { left: 0; right: 0; width: auto; padding: 0; pointer-events: none; display: block; }
+body:not(.compact):not(.full) #side > * { pointer-events: auto; }
+body:not(.compact):not(.full) #waze { display: none; }
+body:not(.compact):not(.full) #topbar { position: fixed; left: var(--sp-6); right: var(--sp-5); top: var(--sp-4); height: 56px; padding: 0; transition: opacity .4s; }
+body:not(.compact):not(.full) #topbar .clock { pointer-events: none; }
+body:not(.compact):not(.full).driving #topbar .clock { opacity: 0; }        /* driving: the speedometer takes that corner */
+#t-odo { font-size: 17px; color: var(--mute); font-variant-numeric: tabular-nums; }
+#t-odo:not(:empty)::before { content: "·"; margin-right: var(--sp-3); }
+body:not(.compact):not(.full) #music { position: fixed; left: var(--sp-5); right: var(--sp-5); bottom: var(--sp-4); height: 128px; box-sizing: border-box;
+  grid-template-columns: auto minmax(0, 420px) auto 1fr; grid-template-rows: auto auto; column-gap: var(--sp-5); row-gap: var(--sp-2);
+  padding: var(--sp-3) 500px var(--sp-3) var(--sp-3); align-items: center; }
+body:not(.compact):not(.full) #m-cover { width: 104px; height: 104px; grid-row: 1 / span 2; border-radius: 16px; box-shadow: none; }
+body:not(.compact):not(.full) .meta { grid-column: 2; grid-row: 1; align-self: end; }
+body:not(.compact):not(.full) #m-title { font-size: 24px; }
+body:not(.compact):not(.full) #m-artist { font-size: 18px; margin-top: 2px; }
+body:not(.compact):not(.full) .prog { grid-column: 2; grid-row: 2; align-self: start; }
+body:not(.compact):not(.full) .ctrl { grid-column: 3; grid-row: 1 / span 2; gap: var(--sp-3); }
+body:not(.compact):not(.full) .ctrl button { width: 72px; height: 72px; }
+body:not(.compact):not(.full) #m-toggle { width: 88px; height: 88px; }
+body:not(.compact):not(.full) #dock { left: auto; right: calc(var(--sp-5) + var(--sp-4)); bottom: calc(var(--sp-4) + 14px); z-index: 2; }
+body:not(.compact):not(.full) #dock button { width: 108px; height: 100px; background: var(--scene-bg); }
+body:not(.compact):not(.full) #carzone { z-index: 3; }   /* dock above the bottom bar */
+
+/* gear button in the status bar */
+button.chip { width: 40px; padding: 0; justify-content: center; }
+/* ---- incoming / ongoing call (FYT BT module) — iOS-style call card ---- */
+#call { position: fixed; left: 50%; top: var(--sp-4); transform: translateX(-50%); z-index: 9; box-sizing: border-box;
+  width: min(760px, calc(100vw - 32px)); display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: var(--sp-4);
+  padding: 14px 18px 12px 14px; border-radius: 36px; background: rgba(28, 28, 30, .97); color: #fff;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, .45); font-family: -apple-system, "SF Pro Display", system-ui, Roboto, sans-serif;
+  animation: callIn .35s cubic-bezier(.2, .9, .3, 1.2); }
+@keyframes callIn { from { opacity: 0; transform: translate(-50%, -24px) scale(.96); } }
+#call .av { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(180deg, #a5abb6, #858b96); color: #f2f2f7; display: grid; place-items: end center; overflow: hidden; }
+#call .av svg { width: 52px; height: 52px; margin-bottom: -4px; }
+#call .who { display: flex; flex-direction: column; min-width: 0; }
+#call-st { font-size: 15px; color: rgba(235, 235, 245, .6); letter-spacing: .01em; }
+#call-num { font: 600 27px/1.2 -apple-system, "SF Pro Display", system-ui, Roboto, sans-serif; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#call .acts { display: flex; gap: var(--sp-5); }
+#call .act { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+#call .act span { font-size: 13px; color: rgba(235, 235, 245, .75); }
+#call button { width: 68px; height: 68px; border-radius: 50%; display: grid; place-items: center; color: #fff; }
+#call button:active { filter: brightness(.85); }
+#call button svg { width: 32px; height: 32px; }
+#call-ok { background: #34c759; }
+#call-end { background: #ff3b30; }
+#call:not([data-st="4"]) .act.ok { display: none; }
+@media (prefers-reduced-motion: reduce) { #call { animation: none; } }
+/* split screen: full-width card under the system status bar; third of the screen: buttons on their own row */
+body.compact #call { top: 56px; left: var(--sp-3); right: var(--sp-3); width: auto; transform: none; animation-name: callInC; }
+@keyframes callInC { from { opacity: 0; transform: translateY(-24px); } }
+@media (max-width: 600px) {
+  body.compact #call { grid-template-columns: auto 1fr; border-radius: 28px; }
+  body.compact #call .acts { grid-column: 1 / -1; justify-content: space-around; }
+  body.compact #call .av { width: 52px; height: 52px; }
+  body.compact #call-num { font-size: 23px; }
+}
+/* ---- settings panel (same family as Véhicule / Éclairage) ---- */
+#settings { position: fixed; inset: 0; z-index: 8; background: var(--scene-bg); display: flex; flex-direction: column; gap: 18px; padding: 20px 28px; }
+#settings[hidden] { display: none; }
+#settings header { display: flex; align-items: center; justify-content: space-between; }
+#settings h1 { margin: 0; font: 600 30px/1 var(--font); }
+#s-close { width: 62px; height: 62px; display: grid; place-items: center; border-radius: 16px; background: var(--card); border: 1px solid var(--line); }
+#s-close svg { width: 26px; height: 26px; }
+#settings .sgrid { flex: 1; min-height: 0; display: grid; grid-template-columns: 1.3fr 1fr 0.9fr; gap: 16px; overflow-y: auto; }
+#settings .card { background: var(--card); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; display: flex; flex-direction: column; gap: 16px; }
+#settings .row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); }
+#settings .row b { font: 600 18px var(--font); }
+#settings .row input[type=range] { flex: 1; }
+#settings .row em { font-style: normal; min-width: 48px; text-align: right; }
+#settings .hint { font-size: 14px; color: var(--mute); }
+#settings .ghost { height: 60px; border-radius: 16px; border: 1px solid var(--line); font: 500 17px var(--font); }
+#settings .tog { display: flex; gap: 14px; align-items: flex-start; }
+#settings .tog input { width: 30px; height: 30px; margin: 2px 0 0; accent-color: var(--fg); }
+#settings .tog b { display: block; font: 600 18px var(--font); }
+#settings .tog small { display: block; color: var(--mute); font-size: 14px; }
+#settings .kv { margin: 0; display: grid; gap: 12px; }
+#settings .kv dt { font-size: 14px; color: var(--mute); } #settings .kv dd { margin: 2px 0 0; font: 600 18px var(--font); }
+body.compact #settings { padding: 56px var(--sp-4) var(--sp-4); }
+body.compact #settings .sgrid { grid-template-columns: 1fr; grid-auto-rows: min-content; }
+/* ---- full view: bigger player buttons (easier while driving) ---- */
+body:not(.compact):not(.full) #music { height: 148px; }
+body:not(.compact):not(.full) #m-cover { width: 120px; height: 120px; }
+body:not(.compact):not(.full) .ctrl { gap: var(--sp-4); }
+body:not(.compact):not(.full) .ctrl button { width: 92px; height: 92px; background: var(--press); }
+body:not(.compact):not(.full) .ctrl button svg { width: 38px; height: 38px; }
+body:not(.compact):not(.full) #m-toggle { width: 112px; height: 112px; background: var(--fg); }
+body:not(.compact):not(.full) #m-toggle svg { width: 42px; height: 42px; }
+body:not(.compact):not(.full) #dock { bottom: calc(var(--sp-4) + 24px); }
+.chip[hidden] { display: none; }
+body.compact #carzone { z-index: 4; }   /* call card above the music card */
+#call[hidden] { display: none; }
+#vehicle .svc button { white-space: nowrap; padding: 0 14px; }

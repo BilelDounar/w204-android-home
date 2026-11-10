@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- album art lookup (iTunes Search API) when the unit is online -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Wi-Fi on at start / wake-up (phone hotspot) -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- auto start: boot + screen on (ACC), background activity start via the SYSTEM_ALERT_WINDOW app-op -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- interior LED controller (BLE) -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
+    <!-- Android 11+ package visibility: stock launcher(s) and the LED LAMP app -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.HOME" />
+        </intent>
+        <package android:name="com.ledlamp" />
+        <package android:name="com.waze" />
+    </queries>
+
+    <application
+        android:label="W204"
+        android:icon="@android:drawable/ic_menu_compass"
+        android:theme="@style/W204.Theme"
+        android:hardwareAccelerated="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Not declared as HOME on purpose: the stock (Mercedes-style) launcher stays the default.
+                 The 3×3 button of the page opens it. -->
+        </activity>
+
+        <service android:name=".AutoStartService" android:exported="false" />
+        <service android:name=".SplitAccess" android:exported="true" android:label="W204 écran partagé"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter><action android:name="android.accessibilityservice.AccessibilityService" /></intent-filter>
+            <meta-data android:name="android.accessibilityservice" android:resource="@xml/w204_access" />
+        </service>
+        <receiver android:name=".BootReceiver" android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Music metadata (title, artist, play state) from Android media sessions.
+             Enable once:  adb shell cmd notification allow_listener fr.w204.home/fr.w204.home.MediaListener -->
+        <service
+            android:name=".MediaListener"
+            android:exported="true"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+    </application>
+</manifest>
